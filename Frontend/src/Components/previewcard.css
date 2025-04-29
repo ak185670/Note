@@ -1,0 +1,12 @@
+
+.preview-area {
+    height: 10 rem;       
+    overflow: hidden;
+  }
+  
+  .preview-area img {
+    width: 20%;
+    object-fit: cover;     
+    object-position: top;
+    border-radius: 0.25rem;
+  }

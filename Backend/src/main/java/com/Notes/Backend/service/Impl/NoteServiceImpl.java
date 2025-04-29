@@ -1,12 +1,16 @@
 package com.Notes.Backend.service.Impl;
 
+import com.Notes.Backend.Security.JwtService;
 import com.Notes.Backend.model.AccessType;
 import com.Notes.Backend.model.Note;
 import com.Notes.Backend.model.User;
 import com.Notes.Backend.repository.NoteRepository;
 import com.Notes.Backend.repository.UserRepository;
 import com.Notes.Backend.service.NoteService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -18,11 +22,15 @@ public class NoteServiceImpl implements NoteService {
 
     private final NoteRepository noteRepository;
     private final UserRepository userRepository;
+    private final JwtService jwtService;
 
     @Override
-    public Note createNote(Note note) {
+    public Note createNote(@Valid Note note, String token) {
+        String userId=jwtService.extractUserId(token);
         note.setCreatedAt(new Date());
         note.setLastEdited(new Date());
+        note.setCreatedBy(userId);
+
         Note savedNote = noteRepository.save(note);
 
         userRepository.findById(note.getCreatedBy()).ifPresent(user -> {
@@ -51,14 +59,14 @@ public class NoteServiceImpl implements NoteService {
     }
 
     @Override
-    public Note updateNoteContent(String noteId, String content, String title, String tag) {
+    public Note updateNoteContent(String noteId, String content, String title, List<String> tags) {
         Optional<Note> noteOpt = noteRepository.findById(noteId);
         if (noteOpt.isEmpty()) return null;
 
         Note note = noteOpt.get();
         note.setContent(content);
         note.setTitle(title);
-        note.setTag(tag);
+        note.setTags(tags);
         note.setLastEdited(new Date());
 
         return noteRepository.save(note);
@@ -152,33 +160,134 @@ public class NoteServiceImpl implements NoteService {
                 .orElse(Collections.emptyList());
     }
 
+
+
     @Override
-    public List<Note> getDashboardNotes(String userId) {
-        Optional<User> userOpt = userRepository.findById(userId);
-        if (userOpt.isEmpty()) return Collections.emptyList();
+    public List<Note> getDashboardNotes(String userId, String search, String sortBy, String tag) {
+        List<Note> allNotes = new ArrayList<>();
+        allNotes.addAll(getNotesCreatedBy(userId));
+        allNotes.addAll(getNotesSharedWith(userId));
 
-        User user = userOpt.get();
+        
+        allNotes = allNotes.stream()
+                .filter(note -> !note.isArchived())
+                .collect(Collectors.toList());
 
-        Set<String> pinnedIds = user.getPinnedNoteIds();
-        Set<String> archivedIds = user.getArchivedNoteIds();
+        if (search != null && !search.isEmpty()) {
+            String searchLower = search.toLowerCase();
+            allNotes = allNotes.stream()
+                    .filter(note ->
+                            (note.getTitle() != null && note.getTitle().toLowerCase().contains(searchLower)) ||
+                                    (note.getContent() != null && note.getContent().toLowerCase().contains(searchLower)) ||
+                                    (note.getTags() != null && note.getTags().stream().anyMatch(tagItem -> tagItem.toLowerCase().contains(searchLower)))
+                    )
+                    .collect(Collectors.toList());
+        }
 
-        List<Note> pinned = pinnedIds.stream()
-                .map(noteRepository::findById)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .toList();
+        if (tag != null && !tag.isEmpty()) {
+            String tagLower = tag.toLowerCase();
+            allNotes = allNotes.stream()
+                    .filter(note -> note.getTags() != null && note.getTags().stream()
+                            .anyMatch(tagItem -> tagItem.toLowerCase().equals(tagLower)))
+                    .collect(Collectors.toList());
+        }
 
-        List<Note> others = user.getNoteIds().stream()
-                .filter(noteId -> !pinnedIds.contains(noteId) && !archivedIds.contains(noteId))
-                .map(noteRepository::findById)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .toList();
+        List<Note> pinnedNotes = allNotes.stream()
+                .filter(Note::isPinned)
+                .collect(Collectors.toList());
 
-        List<Note> result = new ArrayList<>();
-        result.addAll(pinned);
-        result.addAll(others);
+        List<Note> unpinnedNotes = allNotes.stream()
+                .filter(note -> !note.isPinned())
+                .collect(Collectors.toList());
 
-        return result;
+        Comparator<Note> comparator = getNoteComparator(sortBy);
+
+        pinnedNotes.sort(comparator);
+        unpinnedNotes.sort(comparator);
+
+        List<Note> finalNotes = new ArrayList<>();
+        finalNotes.addAll(pinnedNotes);
+        finalNotes.addAll(unpinnedNotes);
+
+        return finalNotes;
     }
+
+    private static Comparator<Note> getNoteComparator(String sortBy) {
+        Comparator<Note> comparator = Comparator.comparing(Note::getLastEdited, Comparator.nullsLast(Comparator.naturalOrder())).reversed();
+
+        if (sortBy != null) {
+            comparator = switch (sortBy) {
+                case "createdAt" ->
+                        Comparator.comparing(Note::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())).reversed();
+                case "title" ->
+                        Comparator.comparing(Note::getTitle, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
+                case "lastEdited" ->
+                        Comparator.comparing(Note::getLastEdited, Comparator.nullsLast(Comparator.naturalOrder())).reversed();
+                default -> comparator;
+            };
+        }
+        return comparator;
+    }
+
+    @Override
+    public void togglePin(String userId, String noteId) {
+
+        userRepository.findById(userId).ifPresent(user -> {
+
+            noteRepository.findById(noteId).ifPresent(note -> {
+
+                boolean willPin = !note.isPinned();
+
+                if (willPin && user.getPinnedNoteIds().size() >= 20) {
+                    throw new RuntimeException("Cannot pin more than 20 notes");
+                }
+
+                note.setPinned(willPin);
+                note.setLastEdited(new Date());
+                noteRepository.save(note);
+
+                if (willPin) {
+                    user.getPinnedNoteIds().add(noteId);
+                } else {
+                    user.getPinnedNoteIds().remove(noteId);
+                }
+                userRepository.save(user);
+            });
+        });
+    }
+
+    @Override
+    public void toggleArchive(String userId, String noteId) {
+
+        userRepository.findById(userId).ifPresent(user -> {
+
+            noteRepository.findById(noteId).ifPresent(note -> {
+
+                boolean willArchive = !note.isArchived();
+
+                note.setArchived(willArchive);
+                note.setLastEdited(new Date());
+                noteRepository.save(note);
+
+                if (willArchive) {
+                    user.getArchivedNoteIds().add(noteId);
+                    user.getPinnedNoteIds().remove(noteId);
+                } else {
+                    user.getArchivedNoteIds().remove(noteId);
+                }
+                userRepository.save(user);
+            });
+        });
+    }
+
+    @Override
+    public List<Note> getArchivedNotes(String userId) {
+        return userRepository.findById(userId).map(user-> user.getArchivedNoteIds().stream()
+                .map(noteRepository::findById)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList()))
+                .orElse(Collections.emptyList());
+    }
+
 }

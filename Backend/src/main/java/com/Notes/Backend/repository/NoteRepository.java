@@ -10,9 +10,5 @@ public interface NoteRepository extends MongoRepository<Note,String> {
 
     List<Note> findAllByCreatedBy(String userId);
 
-    List<Note> findAllBySharedWithContainingKey(String userId);
-
-
-
 
 }

@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import axios from "axios";
+import { Navigate, useNavigate } from "react-router-dom";
 
 const Login = () => {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [username,setUsername]=useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const navigate =useNavigate();
 
   const toggleAuthMode = () => {
     setIsSignUp(!isSignUp);
@@ -14,16 +16,14 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSignUp) {
-      if (password !== confirmPassword) {
-        alert("Passwords do not match!");
-        return;
-      }
       try {
-        const response = await axios.post("api/signup", {
+        const response = await axios.post('http://localhost:8080/api/auth/register', {
+          username,
           email,
           password,
         });
         console.log("Sign Up Success:", response.data);
+        setIsSignUp(false);
         
       } catch (error) {
         console.error("Sign Up Error:", error);
@@ -31,11 +31,14 @@ const Login = () => {
       }
     } else {
       try {
-        const response = await axios.post("api/signin", {
-          email,
+        const response = await axios.post("http://localhost:8080/api/auth/login", {
+          username,
           password,
         });
         console.log("Sign In Success:", response.data);
+        const token =response.data.token;
+        localStorage.setItem("token",token);
+        navigate("/dashboard")
        
       } catch (error) {
         console.error("Sign In Error:", error);
@@ -51,7 +54,19 @@ const Login = () => {
         </h2>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <div>
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Username
+            </label>
+            <input
+              type="text"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+              placeholder="Enter Your Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </div>
+          {isSignUp && (<div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Email
             </label>
@@ -62,7 +77,7 @@ const Login = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-          </div>
+          </div>)}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -77,28 +92,7 @@ const Login = () => {
             />
           </div>
 
-          {isSignUp && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Confirm Password
-              </label>
-              <input
-                type="password"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                placeholder="••••••••"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
-            </div>
-          )}
 
-          <div className="flex items-center justify-between">
-            {!isSignUp && (
-              <a href="#" className="text-sm text-indigo-600 hover:text-indigo-500">
-                Forgot password?
-              </a>
-            )}
-          </div>
 
           <button
             type="submit"

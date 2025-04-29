@@ -1,16 +1,13 @@
 package com.Notes.Backend.model;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import jakarta.validation.constraints.NotBlank;
+import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 @Data
 @Builder
@@ -20,14 +17,21 @@ import java.util.Map;
 public class Note {
     @Id
     private String id;
+    @NotBlank
     private String title;
     private String content;
-    private String tag;
+    private List<String> tags;
     private String createdBy;
     private Map<String,AccessType> sharedWith=new HashMap<>();
-    private Date createdAt =new Date();
-    private Date lastEdited = new Date();
 
+    @CreatedDate
+    private Date createdAt ;
+
+    @LastModifiedDate
+    private Date lastEdited ;
+
+    private boolean isPinned=false;
+    private boolean isArchived=false;
 
 
 }

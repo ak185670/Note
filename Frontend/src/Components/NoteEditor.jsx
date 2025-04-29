@@ -1,169 +1,204 @@
-import React, { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import axios from 'axios';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCheckSquare, faImage, faSave, faBold, faItalic, faUnderline } from '@fortawesome/free-solid-svg-icons';
-import '../index.css';
+import {
+  faBold, faItalic, faUnderline, faCheckSquare,
+  faImage, faSave, faTag, faTimes
+} from '@fortawesome/free-solid-svg-icons';
 
+const NoteEditor = ({ note, onSave, onClose }) => {
+  const isEditing = Boolean(note?.id);
+  const editorRef = useRef(null);
+  const titleRef = useRef(null);
+  const fileInput = useRef(null);
 
-const NoteEditor = () => {
-    const editorRef = useRef(null);
-    const fileInputRef = useRef(null);
-    const titleRef = useRef(null);
-    const [titlePlaceholder, setTitlePlaceholder] = useState('Title...');
-    const [fontSize, setFontSize] = useState('16px');
-    const [fontColor, setFontColor] = useState('#000000');
+  const [tags, setTags] = useState([]);
+  const [newTag, setNewTag] = useState('');
 
-    const insertCheckbox = () => {
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        editorRef.current.appendChild(checkbox);
-        editorRef.current.appendChild(document.createTextNode(' '));
+  const token = localStorage.getItem('token');
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const setPh = (ref, ph) => {
+    if (ref.current.innerText.trim() === '') {
+      ref.current.innerHTML = '&#8203;';
+      ref.current.dataset.placeholder = ph;
+    } else ref.current.dataset.placeholder = '';
+  };
+
+  const exec = cmd => document.execCommand(cmd, false, null);
+
+  const insertCheckbox = () => {
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    editorRef.current.append(cb, ' ');
+  };
+
+  const insertImage = e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = ev => {
+      const img = document.createElement('img');
+      img.src = ev.target.result;
+      img.style.maxWidth = '100%';
+      editorRef.current.append(img);
+      fileInput.current.value = '';
+    };
+    r.readAsDataURL(f);
+  };
+
+  useEffect(() => {
+    if (isEditing && note) {
+      titleRef.current.innerText = note.title || '';
+      editorRef.current.innerHTML = note.content || '';
+      setTags(note.tags || []);
+    } else {
+      titleRef.current.innerText = '';
+      editorRef.current.innerHTML = '';
+      setTags([]);
+    }
+    setPh(titleRef, 'Title');
+    setPh(editorRef, 'Take a note…');
+  }, [note, isEditing]);
+
+  const addTag = () => {
+    const t = newTag.trim();
+    if (t && !tags.includes(t)) setTags([...tags, t]);
+    setNewTag('');
+  };
+
+  const removeTag = tagToRemove =>
+    setTags(tags.filter(t => t !== tagToRemove));
+
+  const saveNote = async () => {
+    const title = titleRef.current.innerText.trim().replace(/\u200B/g, '');
+    if (!title) return alert('Title cannot be empty.');
+
+    const payload = {
+      title,
+      content: editorRef.current.innerHTML.trim(),
+      tags
     };
 
-    const insertImage = (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = document.createElement('img');
-                img.src = e.target.result;
-                img.style.maxWidth = '100%';
-                editorRef.current.appendChild(img);
-                fileInputRef.current.value = '';
-            };
-            reader.readAsDataURL(file);
+    try {
+      const url = isEditing
+        ? `http://localhost:8080/api/notes/${note.id}`
+        : `http://localhost:8080/api/notes`;
+      const method = isEditing ? axios.put : axios.post;
+      const res = await method(url, payload, { headers });
+      onSave(res.data, !isEditing);
+    } catch (err) {
+      console.error('Save failed', err);
+      alert('Save failed');
+    }
+  };
+
+  // Add event listener for checkbox state changes using event delegation
+  useEffect(() => {
+    const handleCheckboxChange = (event) => {
+      const checkbox = event.target;
+      if (checkbox.type === 'checkbox') {
+        const isChecked = checkbox.checked;
+        if (isChecked) {
+          checkbox.setAttribute('checked', 'checked');
+        } else {
+          checkbox.removeAttribute('checked');
         }
+      }
     };
 
-    const triggerFileInput = () => {
-        fileInputRef.current.click();
+    // Attach event listener to the editor's parent
+    const editorElement = editorRef.current;
+    if (editorElement) {
+      editorElement.addEventListener('change', handleCheckboxChange, true);
+    }
+
+    // Clean up the event listener on component unmount
+    return () => {
+      if (editorElement) {
+        editorElement.removeEventListener('change', handleCheckboxChange, true);
+      }
     };
+  }, []);
 
-    const handleTitleFocus = () => {
-        if (titleRef.current.innerText === 'Title...') {
-            titleRef.current.innerText = '';
-        }
-    };
-
-    const handleTitleBlur = () => {
-        if (titleRef.current.innerText.trim() === '') {
-            titleRef.current.innerText = 'Title...';
-        }
-    };
-
-    const saveContent = async () => {
-        const title = titleRef.current.innerText;
-        const content = editorRef.current.innerHTML;
-        const note = { title, content };
-        try {
-            await axios.post('http://localhost:5000/api/notes', note);
-            alert('Note saved!');
-            fetchNotes(); 
-        } catch (error) {
-            console.error('Error saving note:', error);
-            alert('Failed to save note.');
-        }
-    };
-
-    const applyStyle = (command, value = null) => {
-        document.execCommand(command, false, value);
-    };
-
-    const handleFontSizeChange = (event) => {
-        setFontSize(event.target.value);
-        applyStyle('fontSize', event.target.value);
-    };
-
-    const handleFontColorChange = (event) => {
-        setFontColor(event.target.value);
-        applyStyle('foreColor', event.target.value);
-    };
-
-    return (
-        <div className="max-w-4xl mx-auto mt-10">
-            <div
-                ref={titleRef}
-                contentEditable="true"
-                className="bg-black text-white text-2xl p-2 min-h-[50px] border border-gray-400 rounded-t-lg"
-                onFocus={handleTitleFocus}
-                onBlur={handleTitleBlur}
-            >
-                {titlePlaceholder}
-            </div>
-
-            <div className="bg-gray-800 p-2 flex gap-2 flex-wrap">
-                <button
-                    onClick={insertCheckbox}
-                    className="bg-black text-white px-3 py-1 rounded flex items-center gap-2"
-                >
-                    <FontAwesomeIcon icon={faCheckSquare} />
-                </button>
-                <button
-                    onClick={triggerFileInput}
-                    className="bg-black text-white px-3 py-1 rounded flex items-center gap-2"
-                >
-                    <FontAwesomeIcon icon={faImage} />
-                </button>
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    style={{ display: 'none' }}
-                    onChange={insertImage}
-                    accept="image/*"
-                />
-                <button
-                    onClick={() => applyStyle('bold')}
-                    className="bg-black text-white px-3 py-1 rounded flex items-center gap-2"
-                >
-                    <FontAwesomeIcon icon={faBold} />
-                </button>
-                <button
-                    onClick={() => applyStyle('italic')}
-                    className="bg-black text-white px-3 py-1 rounded flex items-center gap-2"
-                >
-                    <FontAwesomeIcon icon={faItalic} />
-                </button>
-                <button
-                    onClick={() => applyStyle('underline')}
-                    className="bg-black text-white px-3 py-1 rounded flex items-center gap-2"
-                >
-                    <FontAwesomeIcon icon={faUnderline} />
-                </button>
-                <select
-                    value={fontSize}
-                    onChange={handleFontSizeChange}
-                    className="bg-black text-white px-3 py-1 rounded flex items-center gap-2"
-                >
-                    <option value="1">8px</option>
-                    <option value="2">10px</option>
-                    <option value="3">12px</option>
-                    <option value="4">14px</option>
-                    <option value="5">16px</option>
-                    <option value="6">18px</option>
-                    <option value="7">20px</option>
-                </select>
-                <input
-                    type="color"
-                    value={fontColor}
-                    onChange={handleFontColorChange}
-                    className="bg-black text-white px-3 py-1 rounded flex items-center gap-2"
-                />
-               
-                <button
-                    onClick={saveContent}
-                    className="bg-black text-white px-3 py-1 rounded flex items-center gap-2"
-                >
-                    <FontAwesomeIcon icon={faSave} />
-                    Save
-                </button>
-            </div>
-
-            <div
-                ref={editorRef}
-                contentEditable="true"
-                className="bg-black text-white p-4 min-h-[300px] border border-gray-400 rounded-b-lg"
-            ></div>
+  return (
+    <div className="p-4 rounded-xl border border-gray-300 shadow-md bg-white mx-auto">
+      {/* Title and Tag Section */}
+      <div className="flex flex-wrap justify-between gap-2 items-center px-4 pt-4 pb-2">
+        <div
+          ref={titleRef}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={() => setPh(titleRef, 'Title')}
+          className="text-lg font-medium outline-none min-h-[24px] relative flex-1 truncate
+                    before:content-[attr(data-placeholder)] before:absolute before:left-4 before:top-1
+                    before:text-gray-400 before:pointer-events-none empty:before:block overflow-hidden whitespace-nowrap"
+          data-placeholder="Title"
+        />
+        <div className="flex items-center gap-1">
+          <FontAwesomeIcon icon={faTag} className="text-gray-400" />
+          <input
+            type="text"
+            value={newTag}
+            placeholder="Add tag"
+            onChange={e => setNewTag(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addTag()}
+            className="border-b text-sm focus:outline-none border-gray-200 focus:border-gray-400 py-1 px-1 w-28"
+          />
+          <button
+            onClick={addTag}
+            className="text-sm text-blue-500 hover:underline"
+          >
+            Add
+          </button>
         </div>
-    );
+      </div>
+
+      {/* Tags List */}
+      <div className="px-4 flex flex-wrap gap-2 mt-1 border-b border-gray-200 pb-2">
+        {tags.map(tag => (
+          <span key={tag} className="bg-gray-100 text-sm px-2 py-1 rounded-full flex items-center gap-1 ">
+            <FontAwesomeIcon icon={faTag} className="text-gray-400" />
+            {tag}
+            <button onClick={() => removeTag(tag)} className="text-gray-400 hover:text-gray-600">
+              <FontAwesomeIcon icon={faTimes} size="xs" />
+            </button>
+          </span>
+        ))}
+      </div>
+
+      {/* Note body */}
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={() => setPh(editorRef, 'Take a note…')}
+        className="min-h-[100px] px-4 py-2 outline-none text-gray-800 relative
+                   before:content-[attr(data-placeholder)] before:absolute before:left-4 before:top-2
+                   before:text-gray-400 before:pointer-events-none empty:before:block"
+        data-placeholder="Take a note…"
+      />
+
+      {/* Toolbar */}
+      <div className="flex justify-between items-center border-t border-gray-200 px-3">
+        <div className="flex gap-2 text-gray-500">
+          <button onClick={() => exec('bold')} className="hover:bg-gray-100 p-2 rounded-full"><FontAwesomeIcon icon={faBold} /></button>
+          <button onClick={() => exec('italic')} className="hover:bg-gray-100 p-2 rounded-full"><FontAwesomeIcon icon={faItalic} /></button>
+          <button onClick={() => exec('underline')} className="hover:bg-gray-100 p-2 rounded-full"><FontAwesomeIcon icon={faUnderline} /></button>
+          <button onClick={insertCheckbox} className="hover:bg-gray-100 p-2 rounded-full"><FontAwesomeIcon icon={faCheckSquare} /></button>
+          <button onClick={() => fileInput.current.click()} className="hover:bg-gray-100 p-2 rounded-full"><FontAwesomeIcon icon={faImage} /></button>
+          <input ref={fileInput} type="file" accept="image/*" onChange={insertImage} className="hidden" />
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={saveNote} className="flex items-center gap-1 px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-full">
+            <FontAwesomeIcon icon={faSave} /> Save
+          </button>
+          <button onClick={onClose} className="text-gray-500 hover:bg-gray-100 px-4 py-2 rounded-full">Close</button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default NoteEditor;

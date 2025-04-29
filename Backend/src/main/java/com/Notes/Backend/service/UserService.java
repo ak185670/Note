@@ -1,4 +1,5 @@
 package com.Notes.Backend.service;
+import com.Notes.Backend.dto.AuthResponse;
 import com.Notes.Backend.model.User;
 
 import java.util.*;
@@ -6,6 +7,8 @@ import java.util.*;
 public interface UserService {
 
     User registerUser(User user);
+
+    AuthResponse login(String username,String rawPassword);
 
     Optional<User> findById(String id);
 
@@ -27,13 +30,7 @@ public interface UserService {
 
     List<User> getSentRequests(String userId);
 
-    void pinNotes(String userId, String noteId);
 
-    void unPinNotes(String userId, String noteId);
-
-    void archiveNotes(String userId, String noteId);
-
-    void unArchiveNotes(String userId, String noteId);
 
     List<String> getPinnedNotes(String userId);
 

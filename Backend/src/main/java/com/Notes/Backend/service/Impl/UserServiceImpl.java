@@ -1,9 +1,13 @@
 package com.Notes.Backend.service.Impl;
 
+import com.Notes.Backend.Security.JwtService;
+import com.Notes.Backend.dto.AuthResponse;
 import com.Notes.Backend.model.User;
 import com.Notes.Backend.repository.UserRepository;
 import com.Notes.Backend.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -13,11 +17,27 @@ import java.util.*;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
     @Override
     public User registerUser(User user) {
         user.setCreatedAt(System.currentTimeMillis());
         return userRepository.save(user);
+    }
+
+    @Override
+    public AuthResponse login(String username, String rawPassword) {
+        User user =userRepository.findByUsername(username)
+                .orElseThrow(()-> new UsernameNotFoundException("User not found"));
+
+        if(!passwordEncoder.matches(rawPassword,user.getPassword()))
+        {
+            throw new RuntimeException("Invalid Credentials");
+        }
+        String token = jwtService.generateToken(user.getId());
+
+        return new AuthResponse(token);
     }
 
     @Override
@@ -142,40 +162,6 @@ public class UserServiceImpl implements UserService {
                 .orElse(Collections.emptyList());
     }
 
-    @Override
-    public void pinNotes(String userId, String noteId) {
-        userRepository.findById(userId).ifPresent(user -> {
-            if (user.getPinnedNoteIds().size() >= 20) {
-                throw new RuntimeException("Cannot pin more than 20 notes");
-            }
-            user.getPinnedNoteIds().add(noteId);
-            userRepository.save(user);
-        });
-    }
-
-    @Override
-    public void unPinNotes(String userId, String noteId) {
-        userRepository.findById(userId).ifPresent(user -> {
-            user.getPinnedNoteIds().remove(noteId);
-            userRepository.save(user);
-        });
-    }
-
-    @Override
-    public void archiveNotes(String userId, String noteId) {
-        userRepository.findById(userId).ifPresent(user -> {
-            user.getArchivedNoteIds().add(noteId);
-            userRepository.save(user);
-        });
-    }
-
-    @Override
-    public void unArchiveNotes(String userId, String noteId) {
-        userRepository.findById(userId).ifPresent(user -> {
-            user.getArchivedNoteIds().remove(noteId);
-            userRepository.save(user);
-        });
-    }
 
     @Override
     public List<String> getPinnedNotes(String userId) {
