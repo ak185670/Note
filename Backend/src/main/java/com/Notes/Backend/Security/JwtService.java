@@ -12,16 +12,11 @@ public class JwtService {
     @Value("${jwt.secret}")
     private String jwtSecret;
 
-    @Value("${jwt.expiration}")
-    private long jwtExpirationMs;
-
-
 
     public  String generateToken(String userId) {
         return Jwts.builder()
                 .setSubject(userId)
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
                 .signWith(SignatureAlgorithm.HS512, jwtSecret)
                 .compact();
     }

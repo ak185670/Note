@@ -1,8 +1,12 @@
 package com.Notes.Backend.Controller;
 
 import com.Notes.Backend.Security.JwtService;
+import com.Notes.Backend.dto.NoteResponse;
 import com.Notes.Backend.model.AccessType;
 import com.Notes.Backend.model.Note;
+import com.Notes.Backend.model.User;
+import com.Notes.Backend.repository.NoteRepository;
+import com.Notes.Backend.repository.UserRepository;
 import com.Notes.Backend.service.NoteService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,26 +29,27 @@ public class NoteController {
     }
 
     @GetMapping()
-    public List<Note> getNotes(@RequestHeader("Authorization") String authHeader ,@RequestParam(value="search", required=false)
+    public List<NoteResponse> getNotes(@RequestHeader("Authorization") String authHeader , @RequestParam(value="search", required=false)
                                String search , @RequestParam(value="sortBy", required=false) String sortBy , @RequestParam(value="tag",required=false) String tag,
-                               @RequestParam(value="archived",required=false) Boolean archived) {
+                                       @RequestParam(value="archived",required=false) Boolean archived) {
+
         String token = authHeader.startsWith("Bearer ") ? authHeader.substring(7):authHeader;
         String userId= jwtService.extractUserId(token);
         if(archived) return noteService.getArchivedNotes(userId);
+
         return noteService.getDashboardNotes(userId,search,sortBy,tag);
     }
-    @GetMapping("/archived")
-    public List<Note> getArchivedNotes(@RequestHeader("Authorization") String authHeader )
-    {
-        String token = authHeader.startsWith("Bearer ") ? authHeader.substring(7):authHeader;
-        String userId= jwtService.extractUserId(token);
-        return noteService.getArchivedNotes(userId);
-    }
+
     @GetMapping("/{noteId}")
     public Optional<Note> getNote(@PathVariable String noteId) {
         return noteService.findById(noteId);
     }
 
+    @GetMapping("/SharedUsers/{noteId}")
+    public List<User> getSharedUsers(@PathVariable String noteId)
+    {
+        return noteService.getSharedUsers(noteId);
+    }
     @GetMapping("/shared/{userId}")
     public List<Note> getSharedNotes(@PathVariable String userId) {
         return noteService.getNotesSharedWith(userId);
@@ -62,32 +67,21 @@ public class NoteController {
         noteService.deleteNote(noteId, userId);
     }
 
-    @PostMapping("/share/{noteId}/{targetUserId}")
-    public void shareNote(@PathVariable String noteId, @PathVariable String targetUserId,
-                          @RequestParam AccessType accessType) {
-        noteService.shareNote(noteId, targetUserId, accessType);
+    @GetMapping("/share/{noteId}/{targetUserId}")
+    public void shareNote(@RequestHeader("Authorization") String authHeader ,@PathVariable String noteId, @PathVariable String targetUserId) {
+        System.out.println("share called");
+        String token = authHeader.startsWith("Bearer ") ? authHeader.substring(7):authHeader;
+        String userId= jwtService.extractUserId(token);
+        noteService.shareNote(noteId, targetUserId);
     }
 
-    @PostMapping("/revoke/{noteId}/{targetUserId}")
-    public void revokeShare(@PathVariable String noteId, @PathVariable String targetUserId) {
+    @GetMapping("/revoke/{noteId}/{targetUserId}")
+    public void revokeShare(@RequestHeader("Authorization") String authHeader ,@PathVariable String noteId, @PathVariable String targetUserId) {
+        String token = authHeader.startsWith("Bearer ") ? authHeader.substring(7):authHeader;
+        String userId= jwtService.extractUserId(token);
         noteService.revokeShare(noteId, targetUserId);
     }
 
-    @PostMapping("/access/{noteId}/{userId}")
-    public void updateAccess(@PathVariable String noteId, @PathVariable String userId,
-                             @RequestParam AccessType accessType) {
-        noteService.UpdateAccess(noteId, userId, accessType);
-    }
-
-    @GetMapping("/can-edit/{noteId}/{userId}")
-    public boolean canEdit(@PathVariable String noteId, @PathVariable String userId) {
-        return noteService.canEdit(noteId, userId);
-    }
-
-    @GetMapping("/can-view/{noteId}/{userId}")
-    public boolean canView(@PathVariable String noteId, @PathVariable String userId) {
-        return noteService.canView(noteId, userId);
-    }
 
     @GetMapping("/pinned")
     public List<Note> getPinnedNotes(@RequestHeader("Authorization") String authHeader) {

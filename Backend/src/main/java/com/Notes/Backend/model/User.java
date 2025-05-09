@@ -25,9 +25,6 @@ public class User {
     private Set<String> sharedNoteIds = new HashSet<>();
     private Set<String> pinnedNoteIds = new HashSet<>();
     private Set<String> archivedNoteIds = new HashSet<>();
-    private Set<String> friends = new HashSet<>();
-    private Set<String> sentRequests = new HashSet<>();
-    private Set<String> receivedRequests = new HashSet<>();
     private Long createdAt = System.currentTimeMillis();
 
 }

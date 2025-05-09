@@ -7,7 +7,9 @@ import {
   faTrash, faTag, faSearch, faSort, faCircleCheck
 } from "@fortawesome/free-solid-svg-icons";
 
+
 const Dashboard = () => {
+  const apiurl =import.meta.env.VITE_API_URL;
   const [notes, setNotes] = useState([]);
   const [activeNote, setActiveNote] = useState(null);
   const [creatingNew, setCreatingNew] = useState(false);
@@ -16,27 +18,40 @@ const Dashboard = () => {
   const [selectedTag, setSelectedTag] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const[username,setUsername]= useState("");
 
   const filterRef = useRef(null);
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
 
+  const getUsername = useCallback(async()=> {
+
+      const {data} =await axios.get(`${apiurl}/api/users`,{headers});
+      setUsername(data);
+      
+  },[])
+
+
   const loadNotes = useCallback(async () => {
     try {
-      const { data } = await axios.get("http://localhost:8080/api/notes", {
+      
+      const { data } = await axios.get(`${apiurl}/api/notes`, {
         headers,
         params: { search: searchTerm, sortBy: sortOption, tag: selectedTag, archived: showArchived },
       });
       setNotes(data);
+      getUsername()
+
+      console.log(data);
     } catch (_) {}
   }, [searchTerm, sortOption, selectedTag, showArchived]);
 
-  useEffect(() => { loadNotes(); }, [loadNotes]);
+  useEffect(() => { loadNotes();  }, [loadNotes]);
 
-  const togglePin = note => axios.post(`http://localhost:8080/api/notes/togglePin/${note.id}`, null, { headers }).then(loadNotes);
-  const toggleArchive = note => axios.post(`http://localhost:8080/api/notes/toggleArchive/${note.id}`, null, { headers }).then(loadNotes);
-  const deleteNote = id => axios.delete(`http://localhost:8080/api/notes/delete/${id}`, { headers }).then(loadNotes);
+  const togglePin = note => axios.post(`${apiurl}/api/notes/togglePin/${note.id}`, null, { headers }).then(loadNotes);
+  const toggleArchive = note => axios.post(`${apiurl}/api/notes/toggleArchive/${note.id}`, null, { headers }).then(loadNotes);
+  const deleteNote = id => axios.delete(`${apiurl}/api/notes/delete/${id}`, { headers }).then(loadNotes);
 
   const handleSave = () => { setActiveNote(null); setCreatingNew(false); loadNotes(); };
 
@@ -54,6 +69,13 @@ const Dashboard = () => {
   const toggleArchived = () => {
     setShowArchived(prev => !prev);
   };
+  
+  const handleDelete=(id)=>{
+    if(confirm("Delete?"))
+    {
+      deleteNote(id);
+    }
+  }
 
   const allTags = Array.from(new Set(notes.flatMap(note => note.tags || [])));
 
@@ -104,7 +126,7 @@ const Dashboard = () => {
         <div className="relative" ref={filterRef}>
           <button
             onClick={() => setShowFilterDropdown(prev => !prev)}
-            className="border border-gray-300 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 bg-white flex items-center gap-2"
+            className="border border-gray-300 px-6 py-3 max-w-md w-full rounded-lg text-gray-600 hover:bg-gray-100 bg-white flex items-center gap-2"
           >
             <FontAwesomeIcon icon={faSort} />
             Filters
@@ -120,7 +142,7 @@ const Dashboard = () => {
                   className={`flex items-center gap-2 p-2 rounded-md ${sortOption === "createdAt" ? "bg-gray-200 text-gray-800 font-semibold" : "hover:bg-gray-100"}`}
                 >
                   <FontAwesomeIcon icon={faCircleCheck} className={`${sortOption === "createdAt" ? "text-gray-700" : "text-gray-400"}`} />
-                  Sort By Created At
+                  Sort By Creation Date
                 </button>
 
                 <button
@@ -128,7 +150,7 @@ const Dashboard = () => {
                   className={`flex items-center gap-2 p-2 rounded-md ${sortOption === "lastEdited" ? "bg-gray-200 text-gray-800 font-semibold" : "hover:bg-gray-100"}`}
                 >
                   <FontAwesomeIcon icon={faCircleCheck} className={`${sortOption === "lastEdited" ? "text-gray-700" : "text-gray-400"}`} />
-                  Sort By Last Edited
+                  Recently Edited
                 </button>
               </div>
 
@@ -157,7 +179,7 @@ const Dashboard = () => {
                   }`}
                 >
                   <FontAwesomeIcon icon={showArchived ? faBoxArchive : faArchive} className="text-gray-500" />
-                  {showArchived ? "Showing Archived" : "Show Archived Only"}
+                  {showArchived ? "Showing Archived" : "Show Archived"}
                 </button>
               </div>
 
@@ -175,6 +197,11 @@ const Dashboard = () => {
             className="relative border border-gray-300 shadow-md bg-white p-4 pb-2 rounded-lg hover:bg-gray-50 transition group"
             onClick={() => setActiveNote(note)}
           >
+            {note.shared && (
+              <div className="absolute top-0 left-0 bg-black text-white text-[10px] font-bold px-2 py-1 rounded-br-lg z-10">
+                SHARED
+              </div>
+            )}
             <div className="absolute top-2 right-2 flex gap-1" onClick={e => e.stopPropagation()}>
               <button title={note.pinned ? "Unpin" : "Pin"} onClick={() => togglePin(note)} className="p-1 text-gray-500 hover:text-black rounded-full active:scale-95 transition">
                 <FontAwesomeIcon icon={note.pinned ? faThumbtackSlash : faThumbtack} className="h-5 w-5" />
@@ -182,25 +209,26 @@ const Dashboard = () => {
               <button title={note.archived ? "Unarchive" : "Archive"} onClick={() => toggleArchive(note)} className="p-1 hover:text-black text-gray-500 rounded-full active:scale-95 transition">
                 <FontAwesomeIcon icon={note.archived ? faBoxArchive : faArchive} className="h-4 w-4" />
               </button>
-              <button title="Delete" onClick={() => deleteNote(note.id)} className="p-1 rounded-full hover:text-black active:scale-95 text-gray-500 transition">
+              <button title={note.createdUser=== username ? "Delete":"Delete For You"} onClick={() => handleDelete(note.id)} className="p-1 rounded-full hover:text-black active:scale-95 text-gray-500 transition">
                 <FontAwesomeIcon icon={faTrash} className="h-4 w-4" />
               </button>
             </div>
 
-            <h2 className="text-xl font-semibold mb-2 text-gray-700">
+            <h2 className={`text-xl font-semibold mb-2 text-gray-700 ${note.shared?'pt-3':''} `}>
               {note.title || "Untitled"}
             </h2>
             <div dangerouslySetInnerHTML={{ __html: note.content }} className="preview-area text-sm text-gray-600 line-clamp-3" />
             {note.tags?.length > 0 && (
-              <div className="pt-3 text-sm mb-2 text-gray-500 font-semibold flex flex-wrap gap-2 items-center">
+              <div className="mt-1 pt-3 text-sm mb-2 text-gray-500 font-semibold flex flex-wrap gap-2 items-center">
                 {note.tags.map((tag, index) => (
-                  <span key={index} className="bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full text-xs">
+                  <span key={index} className=" bg-gray-100 text-gray-700 px-2 px-1.5 py-1 rounded-full text-xs">
                     <FontAwesomeIcon icon={faTag} className="text-gray-500 pr-1" />
                     {tag}
                   </span>
                 ))}
               </div>
             )}
+            
           </div>
         ))}
       </div>

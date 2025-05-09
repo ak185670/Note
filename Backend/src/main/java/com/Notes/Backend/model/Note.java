@@ -22,7 +22,8 @@ public class Note {
     private String content;
     private List<String> tags;
     private String createdBy;
-    private Map<String,AccessType> sharedWith=new HashMap<>();
+    private String createdUser;
+    private List<String> sharedWith;
 
     @CreatedDate
     private Date createdAt ;

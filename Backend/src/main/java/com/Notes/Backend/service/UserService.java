@@ -16,21 +16,9 @@ public interface UserService {
 
     Optional<User> findByEmail(String email);
 
-    void sendFriendRequest(String fromUserId, String toUserId);
+    Optional<List<User>> searchUsers(String query);
 
-    void cancelFriendRequest(String fromUserId, String toUserId);
-
-    void acceptFriendRequest(String fromUserId, String toUserId);
-
-    void rejectFriendRequest(String fromUserId, String toUserId);
-
-    List<User> getFriends(String userId);
-
-    List<User> getReceivedRequests(String userId);
-
-    List<User> getSentRequests(String userId);
-
-
+    String getUsername(String userId);
 
     List<String> getPinnedNotes(String userId);
 
