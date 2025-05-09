@@ -20,8 +20,11 @@ target/
 *.ipr
 *.log
 .env
+# Ignore all Spring Boot config files
+src/main/resources/application*.properties
 application-dev.properties
 application-local.properties
+
 
 ### NetBeans ###
 /nbproject/private/
